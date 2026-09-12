@@ -2,15 +2,20 @@ import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-# 1. Load Data (Using raw string 'r' to prevent path errors)
-dataset_path = r'C:\Users\HP\OneDrive\Desktop\intership project\Netflix_dashboard_dataset.csv'
+# 1. Load Data
+dataset_path = 'Netflix_dashboard_dataset.csv'
 df = pd.read_csv(dataset_path)
 
 # 2. Calculate Viewer Retention Score
 df['viewer_retention_score'] = (df['total_watch_hours_millions'] * 1000) / df['monthly_active_viewers_thousands']
 
 # 3. Build Content-Based Recommendation Engine
+# Fill NA values to prevent TF-IDF crashes
+df['listed_in'] = df['listed_in'].fillna('')
+df['type'] = df['type'].fillna('')
+df['language'] = df['language'].fillna('')
 df['combined_features'] = df['listed_in'] + " " + df['type'] + " " + df['language']
+
 tfidf = TfidfVectorizer(stop_words='english')
 tfidf_matrix = tfidf.fit_transform(df['combined_features'])
 cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
@@ -37,7 +42,7 @@ def assign_campaign_segment(score):
 df['retention_campaign_segment'] = df['viewer_retention_score'].apply(assign_campaign_segment)
 
 # 6. Save Updated Dataset for Power BI
-output_path = r'C:\Users\HP\OneDrive\Desktop\intership project\Netflix_with_Retention.csv'
+output_path = 'Netflix_with_Retention.csv'
 df.to_csv(output_path, index=False)
 
 print("Success! 'Netflix_with_Retention.csv' updated.")
