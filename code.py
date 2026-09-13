@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -8,6 +9,7 @@ df = pd.read_csv(dataset_path)
 
 # 2. Calculate Viewer Retention Score
 df['viewer_retention_score'] = (df['total_watch_hours_millions'] * 1000) / df['monthly_active_viewers_thousands']
+df['viewer_retention_score'] = df['viewer_retention_score'].replace([np.inf, -np.inf], 0).fillna(0)
 
 # 3. Build Content-Based Recommendation Engine
 # Fill NA values to prevent TF-IDF crashes
@@ -20,12 +22,14 @@ tfidf = TfidfVectorizer(stop_words='english')
 tfidf_matrix = tfidf.fit_transform(df['combined_features'])
 cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
 
-# Helper function to get top recommendation title
+# Helper function to get top recommendation titles
 def get_top_recommendation(idx):
     sim_scores = list(enumerate(cosine_sim[idx]))
     sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
-    top_recommendation_idx = sim_scores[1][0]  # First item is itself, so take the 2nd
-    return df.iloc[top_recommendation_idx]['title']
+    # Get top 3 recommendations, excluding the item itself
+    top_indices = [i[0] for i in sim_scores[1:4]]
+    top_titles = df.iloc[top_indices]['title'].tolist()
+    return "|".join(top_titles)
 
 # 4. Map ML Recommendations directly into the dataset
 df['recommended_next_watch'] = [get_top_recommendation(i) for i in range(len(df))]
@@ -47,14 +51,15 @@ df.to_csv(output_path, index=False)
 
 print("Success! 'Netflix_with_Retention.csv' updated.")
 
-# --- Test Recommendation Function ---
-def recommend(title):
-    if title not in df['title'].values:
-        return f"Title '{title}' not found."
-    idx = df[df['title'] == title].index[0]
-    sim_scores = sorted(list(enumerate(cosine_sim[idx])), key=lambda x: x[1], reverse=True)[1:6]
-    show_indices = [i[0] for i in sim_scores]
-    return df[['title', 'listed_in', 'retention_campaign_segment', 'recommended_next_watch']].iloc[show_indices]
+if __name__ == "__main__":
+    # --- Test Recommendation Function ---
+    def recommend(title):
+        if title not in df['title'].values:
+            return f"Title '{title}' not found."
+        idx = df[df['title'] == title].index[0]
+        sim_scores = sorted(list(enumerate(cosine_sim[idx])), key=lambda x: x[1], reverse=True)[1:6]
+        show_indices = [i[0] for i in sim_scores]
+        return df[['title', 'listed_in', 'retention_campaign_segment', 'recommended_next_watch']].iloc[show_indices]
 
-print("\nSample Campaign Output for 'Stranger Things':")
-print(recommend('Stranger Things'))
+    print("\nSample Campaign Output for 'Stranger Things':")
+    print(recommend('Stranger Things'))

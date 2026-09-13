@@ -35,17 +35,15 @@ st.markdown("""
 
 @st.cache_data
 def load_data():
-    try:
-        # Load the updated dataset with the ML recommendations and retention scores
-        return pd.read_csv('Netflix_with_Retention.csv')
-    except Exception as e:
-        return pd.DataFrame() # Fallback
+    return pd.read_csv('Netflix_with_Retention.csv')
 
-df = load_data()
+try:
+    df = load_data()
+except Exception as e:
+    df = pd.DataFrame() # Fallback
+    st.error(f"Error loading data: {e}\n\nMake sure to run `python code.py` first to generate 'Netflix_with_Retention.csv'!")
 
-if df.empty:
-    st.error("Error loading data. Make sure to run `python code.py` first to generate 'Netflix_with_Retention.csv'!")
-else:
+if not df.empty:
     # Sidebar navigation
     st.sidebar.image("https://upload.wikimedia.org/wikipedia/commons/0/08/Netflix_2015_logo.svg", width=150)
     st.sidebar.title("Navigation")
@@ -58,10 +56,14 @@ else:
         st.title("🎥 Netflix AI & Retention Dashboard")
         st.markdown("Monitor high-level metrics across the platform.")
 
+        # Interactive filter
+        type_filter = st.selectbox("Filter by Type:", ["All", "Movie", "TV Show"])
+        filtered_df = df if type_filter == "All" else df[df['type'] == type_filter]
+        
         # Top KPIs
-        tot_shows = len(df)
-        avg_retention = df['viewer_retention_score'].mean()
-        tot_watch_hours = df['total_watch_hours_millions'].sum()
+        tot_shows = len(filtered_df)
+        avg_retention = filtered_df['viewer_retention_score'].mean()
+        tot_watch_hours = filtered_df['total_watch_hours_millions'].sum()
 
         col1, col2, col3 = st.columns(3)
         col1.metric("Total Titles Available", f"{tot_shows:,}")
@@ -70,7 +72,7 @@ else:
 
         st.markdown("### 📊 Top Content by Viewer Retention")
         # Sort and show top 10
-        top_retention = df.sort_values(by='viewer_retention_score', ascending=False).head(10)
+        top_retention = filtered_df.sort_values(by='viewer_retention_score', ascending=False).head(10)
         
         # Display as a clean chart
         chart = alt.Chart(top_retention).mark_bar(color="#e50914").encode(
@@ -81,7 +83,7 @@ else:
         st.altair_chart(chart, use_container_width=True)
 
         st.markdown("### 🔍 Dataset Explorer")
-        st.dataframe(df[['title', 'type', 'language', 'viewer_retention_score', 'retention_campaign_segment']].head(50), use_container_width=True)
+        st.dataframe(filtered_df[['title', 'type', 'language', 'viewer_retention_score', 'retention_campaign_segment']].head(50), use_container_width=True)
 
     elif menu == "AI Recommendations":
         st.title("🤖 AI Content Recommendation Engine")
@@ -97,16 +99,19 @@ else:
             st.write(f"**Match Tags:** {row['listed_in']}")
             
             st.markdown("### 🎯 Recommended Next Watch")
-            recommended = row['recommended_next_watch']
+            recommended = str(row['recommended_next_watch'])
+            rec_titles = recommended.split('|')
             
-            st.success(f"**{recommended}**")
-            
-            # Fetch details of recommended
-            rec_row = df[df['title'] == recommended]
-            if not rec_row.empty:
-                rec_row = rec_row.iloc[0]
-                st.write(f"**Description:** A {rec_row['type']} in {rec_row['language']} matching your preferences!")
-                st.write(f"**Genres:** {rec_row['listed_in']}")
+            cols = st.columns(len(rec_titles))
+            for i, rec_title in enumerate(rec_titles):
+                with cols[i]:
+                    st.success(f"**{rec_title}**")
+                    # Fetch details of recommended
+                    rec_row = df[df['title'] == rec_title]
+                    if not rec_row.empty:
+                        rec_row = rec_row.iloc[0]
+                        st.caption(f"{rec_row['type']} • {rec_row['language']}")
+                        st.write(f"*{rec_row['listed_in']}*")
 
     elif menu == "Retention Segmentation":
         st.title("📈 Viewer Retention Segments")
